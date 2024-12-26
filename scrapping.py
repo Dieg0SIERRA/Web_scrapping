@@ -4,15 +4,18 @@ import mplfinance as mpf
 from datetime import datetime, timedelta
 import time
 
+# The limit of points you can apply for is 1000 points
+POINT_LIMIT = 990
+
 # Function to get historical data from Binance
-def fetch_binance_klines(symbol, interval, start_time, end_time, limit):
+def fetch_binance_data(symbol, interval, start_time, end_time):
     url = "https://api.binance.com/api/v3/klines"
     params = {
         "symbol": symbol,
         "interval": interval,
         "startTime": int(start_time.timestamp() * 1000),
         "endTime": int(end_time.timestamp() * 1000),
-        "limit": limit
+        "limit": POINT_LIMIT
     }
     response = requests.get(url, params=params)
     response.raise_for_status()
@@ -26,11 +29,10 @@ def get_last_data(symbol, interval, days_to_plot=10):
     start_time = end_time - timedelta(days=days_to_plot)
 
     while True:
-        limit = 980  # The limit of points you can apply for is 1000 points
-        klines = fetch_binance_klines(symbol, interval, start_time, end_time, limit)
+        klines = fetch_binance_data(symbol, interval, start_time, end_time)
 
         # If the number of points obtained is less than <limit>, it is the last data block.
-        if len(klines) < limit:
+        if len(klines) < POINT_LIMIT:
             all_klines.extend(klines)
             break
 
@@ -45,13 +47,24 @@ def get_last_data(symbol, interval, days_to_plot=10):
 def plot_candlestick_chart(klines, title):
     days_to_plot = 10  # Modify this value to show more or less days on the graph.
 
-    # Convert data to a DataFrame suitable for mplfinance
-    df = pd.DataFrame(klines,
-                      columns=["Time", "Open", "High", "Low", "Close", "Volume"] + [f"Extra{i}" for i in range(6)])
-    df = df[["Time", "Open", "High", "Low", "Close", "Volume"]]
-    df["Time"] = pd.to_datetime(df["Time"], unit="ms")
-    df.set_index("Time", inplace=True)
-    df[["Open", "High", "Low", "Close", "Volume"]] = df[["Open", "High", "Low", "Close", "Volume"]].astype(float)
+    # Convert the data into a pandas DataFrame, but only use the first 6 columns
+    klines = [kline[:6] for kline in klines]  # Keep only the first 6 columns
+
+    # Converting the filtered data into a pandas DataFrame
+    df = pd.DataFrame(klines, columns=["time", "open", "high", "low", "close", "volume"])
+
+    # Convert timestamps into readable time format
+    df["time"] = pd.to_datetime(df["time"], unit="ms")
+    df.set_index("time", inplace=True)
+
+    # Ensure that the numerical columns are of the correct type.
+    df = df.astype({
+        "open": "float",
+        "high": "float",
+        "low": "float",
+        "close": "float",
+        "volume": "float"
+    })
 
     # Limiting the amount of data to selected days
     end_time = df.index[-1]
