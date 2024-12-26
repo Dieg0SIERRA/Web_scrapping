@@ -6,6 +6,9 @@ from datetime import datetime
 import mplfinance as mpf
 import pandas as pd
 
+# The limit of points you can apply for is 1000 points
+POINT_LIMIT = 990
+
 # Create the SQLite database
 def create_database(db_name):
     conn = sqlite3.connect(db_name)
@@ -77,6 +80,20 @@ def get_klines_from_db(db_name, time_start, time_end):
     conn.close()
     return klines
 
+# Function to retrieve Binance history
+def fetch_binance_data(symbol, interval, start_time, end_time):
+    url = "https://api.binance.com/api/v3/klines"
+    params = {
+        "symbol": symbol,
+        "interval": interval,
+        "startTime": int(start_time.timestamp() * 1000),
+        "endTime": int(end_time.timestamp() * 1000),
+        "limit": POINT_LIMIT
+    }
+    response = requests.get(url, params=params)
+    response.raise_for_status()
+    return response.json()
+
 """
 Muestra un gráfico de velas a partir de los datos proporcionados.
 
@@ -121,23 +138,8 @@ def get_last_timestamp(db_name):
     conn.close()
     return result
 
-# Function to retrieve Binance history
-def fetch_binance_data(symbol, interval, start_time, end_time, limit=980):
-    url = "https://api.binance.com/api/v3/klines"
-    params = {
-        "symbol": symbol,
-        "interval": interval,
-        "startTime": int(start_time.timestamp() * 1000),
-        "endTime": int(end_time.timestamp() * 1000),
-        "limit": limit
-    }
-    response = requests.get(url, params=params)
-    response.raise_for_status()
-    return response.json()
-
 # Function to synchronise historical data
 def sync_data(db_name, symbol, interval, limitDate):
-    pointLimit = 980  # The limit of points you can apply for is 1000 points
     end_date = datetime.strptime(limitDate, "%d/%m/%Y")
     create_database(db_name)
     last_timestamp = get_last_timestamp(db_name)
@@ -148,17 +150,17 @@ def sync_data(db_name, symbol, interval, limitDate):
         start_time = datetime.utcfromtimestamp(last_timestamp / 1000) + timedelta(milliseconds=1)
 
     while start_time < end_date:
-        klines = fetch_binance_data(symbol, interval, start_time, end_date, pointLimit)
+        klines = fetch_binance_data(symbol, interval, start_time, end_date)
         save_to_database(db_name, klines)
 
         last_timestamp = klines[-1][0]
         start_time = datetime.utcfromtimestamp(last_timestamp / 1000) + timedelta(milliseconds=1)
 
-        if len(klines) < pointLimit:
+        if len(klines) < POINT_LIMIT:
             break
         time.sleep(2)
 
-def Verifica_input(input):
+def Verify_input(input):
     # Checks whether the first or last character is a letter
     if input[0].isalpha() or input[-1].isalpha():
         if "-" in input:
@@ -173,7 +175,7 @@ def Verifica_input(input):
 def main():
     # Request user input
     pair_input = input("Enter the elements of the pair (for example, btc-usdt or ronin/usdt): ").strip().lower()
-    symbol = Verifica_input(pair_input)
+    symbol = Verify_input(pair_input)
 
     db_name = "ronin-usdt.db"
     interval = "1m"
