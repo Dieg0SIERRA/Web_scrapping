@@ -3,10 +3,20 @@ import pandas as pd
 import mplfinance as mpf
 from datetime import datetime, timedelta
 import time
+import numpy as np
 
 # The limit of points you can apply for is 1000 points
 POINT_LIMIT = 990
 
+# Function to calculate MACD indicator 
+def calculate_macd(df):
+    exp1 = df['close'].ewm(span=8, adjust=False).mean()
+    exp2 = df['close'].ewm(span=21, adjust=False).mean()
+    macd = exp1 - exp2
+    signal = macd.ewm(span=5, adjust=False).mean()
+    histogram = macd - signal
+    return macd, signal, histogram
+    
 # Function to get historical data from Binance
 def fetch_binance_data(symbol, interval, start_time, end_time):
     url = "https://api.binance.com/api/v3/klines"
@@ -72,7 +82,23 @@ def plot_candlestick_chart(klines, title):
     df = df.loc[df.index >= start_time]
 
     # Creating the candlestick chart
-    mpf.plot(df, type='candle', style='charles', title=title, ylabel='Precio', ylabel_lower='Volumen', volume=True)
+    macd, signal, histogram = calculate_macd(df)
+    hist_colors = ['#eb4d5c' if v < 0 else '#53b987' for v in histogram]
+
+    apds = [
+        # MACD lines overlay on main chart
+        mpf.make_addplot(macd, color='#f6b900', width=0.8),
+        mpf.make_addplot(signal, color='#fb00ff', width=0.8),
+        # MACD panel below volume
+        mpf.make_addplot(macd, panel=2, color='#f6b900', width=0.8, ylabel='MACD'),
+        mpf.make_addplot(signal, panel=2, color='#fb00ff', width=0.8),
+        mpf.make_addplot(histogram, type='bar', panel=2, color=hist_colors)
+    ]
+
+    mpf.plot(df, type='candle', style='charles', title=title,
+             ylabel='Price', volume=True, addplot=apds,
+             panel_ratios=(2, 0.5, 1), figsize=(12, 10),
+             volume_panel=1)
 
 def Verifica_input(input):
     # Checks whether the first or last character is a letter
@@ -96,9 +122,10 @@ def main():
     try:
         print(f"\nRecovering data for the pair {pair_input} (last {days_to_plot} days, interval: {interval})...\n")
         klines = get_last_data(symbol, interval, days_to_plot)
-
+        
         # Display candlestick chart
-        plot_candlestick_chart(klines, f"candlestick chart {pair_input} (las {days_to_plot} days, interval: {interval})")
+        plot_candlestick_chart(klines,
+                               f"Candlestick Chart with MACD - {pair_input} (last {days_to_plot} days, interval: {interval})")
     except requests.exceptions.RequestException as e:
         print(f"Error getting data for the pair {pair_input}: {e}")
     except Exception as e:
