@@ -27,6 +27,17 @@ def get_stock_data(stock_name):
 
     return df, info
 
+def calculate_macd(df):
+    fast_ema = 8
+    slow_ema = 12
+    signal_period = 5
+
+    exp1 = df['close'].ewm(span=fast_ema, adjust=False).mean()
+    exp2 = df['close'].ewm(span=slow_ema, adjust=False).mean()
+    macd = exp1 - exp2
+    signal = macd.ewm(span=signal_period, adjust=False).mean()
+    histogram = macd - signal
+    return macd, signal, histogram
 
 def plot_stock_data(df, info):
     # Configuring the chart style
@@ -53,13 +64,22 @@ def plot_stock_data(df, info):
 
 
 def plot_stock_data_with_indicators(df, info):
+    # Set columns names in lowercase
+    df.columns = df.columns.str.lower()
+
+    # Convert the data into a pandas DataFrame,
+    df['close'] = pd.to_numeric(df['close'], errors='coerce')
+
+    macd, signal, histogram = calculate_macd(df)  # Calculate MACD
+    hist_colors = ['#eb4d5c' if v < 0 else '#53b987' for v in histogram]
+
     # Calculate MACD
-    df['MA20'] = df['Close'].rolling(window=20).mean()
-    df['MA50'] = df['Close'].rolling(window=50).mean()
+    df['MA20'] = df['close'].rolling(window=20).mean()
+    df['MA50'] = df['close'].rolling(window=50).mean()
 
     # Calculate Bollinger Bands
-    df['BB_middle'] = df['Close'].rolling(window=20).mean()
-    bb_std = df['Close'].rolling(window=20).std()
+    df['BB_middle'] = df['close'].rolling(window=20).mean()
+    bb_std = df['close'].rolling(window=20).std()
     df['BB_upper'] = df['BB_middle'] + (bb_std * 2)
     df['BB_lower'] = df['BB_middle'] - (bb_std * 2)
 
@@ -68,7 +88,11 @@ def plot_stock_data_with_indicators(df, info):
         mpf.make_addplot(df['MA20'], color='blue', width=0.8, label='MA20'),
         mpf.make_addplot(df['MA50'], color='red', width=0.8, label='MA50'),
         mpf.make_addplot(df['BB_upper'], color='gray', width=0.8, linestyle='--'),
-        mpf.make_addplot(df['BB_lower'], color='gray', width=0.8, linestyle='--')
+        mpf.make_addplot(df['BB_lower'], color='gray', width=0.8, linestyle='--'),
+        # MACD panel below volume
+        mpf.make_addplot(macd, panel=2, color='#f6b900', width=0.8, ylabel='MACD'),
+        mpf.make_addplot(signal, panel=2, color='#fb00ff', width=0.8),
+        mpf.make_addplot(histogram, type='bar', panel=2, color=hist_colors),
     ]
 
     # Configuring the chart style
