@@ -1,7 +1,7 @@
 import yfinance as yf
 import pandas as pd
 import mplfinance as mpf
-from datetime import datetime, timedelta
+import Tools
 
 
 def get_stock_data(stock_name):
@@ -27,17 +27,6 @@ def get_stock_data(stock_name):
 
     return df, info
 
-def calculate_macd(df):
-    fast_ema = 8
-    slow_ema = 12
-    signal_period = 5
-
-    exp1 = df['close'].ewm(span=fast_ema, adjust=False).mean()
-    exp2 = df['close'].ewm(span=slow_ema, adjust=False).mean()
-    macd = exp1 - exp2
-    signal = macd.ewm(span=signal_period, adjust=False).mean()
-    histogram = macd - signal
-    return macd, signal, histogram
 
 def plot_stock_data(df, info):
     # Configuring the chart style
@@ -70,10 +59,10 @@ def plot_stock_data_with_indicators(df, info):
     # Convert the data into a pandas DataFrame,
     df['close'] = pd.to_numeric(df['close'], errors='coerce')
 
-    macd, signal, histogram = calculate_macd(df)  # Calculate MACD
+    macd, signal, histogram = Indicators.calculate_macd(df)  # Calculate MACD
     hist_colors = ['#eb4d5c' if v < 0 else '#53b987' for v in histogram]
 
-    # Calculate MACD
+    # Calculate SMA
     df['MA20'] = df['close'].rolling(window=20).mean()
     df['MA50'] = df['close'].rolling(window=50).mean()
 
